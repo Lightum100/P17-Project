@@ -1,0 +1,40 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+import matplotlib.pyplot as plt
+
+# Define the categories based on your dataset
+categories = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']  # Adjust based on your dataset
+
+# Load the trained model
+model = tf.keras.models.load_model('trash_classifier.keras')
+
+def predict_image(img_path):
+    """Predict the category of a single image."""
+    # Load and preprocess the image
+    img = image.load_img(img_path, target_size=(224, 224))  # Match the input size of your model
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+    img_array /= 255.0  # Rescale to [0, 1]
+
+    # Make predictions
+    predictions = model.predict(img_array)
+    predicted_class_index = np.argmax(predictions[0])  # Get index of highest probability
+    predicted_class = categories[predicted_class_index]  # Map index to category name
+
+    return predicted_class, predictions[0]
+
+# Example usage
+if __name__ == "__main__":
+    img_path = 'diaper.png'  # Replace with your image path
+    predicted_class, probabilities = predict_image(img_path)
+
+    print(f"Predicted Category: {predicted_class}")
+    print("Probabilities:", {categories[i]: probabilities[i] for i in range(len(categories))})
+
+    # Optionally display the image
+    img = image.load_img(img_path)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title(f'Predicted: {predicted_class}')
+    plt.show()
