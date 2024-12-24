@@ -1,0 +1,96 @@
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras import layers, models
+from tensorflow.keras.applications import MobileNetV2
+import matplotlib.pyplot as plt
+
+# Set parameters
+img_height, img_width = 224, 224  # Use standard size for MobileNetV2
+batch_size = 16
+num_classes = 6
+epochs = 10
+
+# Load the dataset with data augmentation
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest',
+    validation_split=0.2
+)
+
+train_generator = train_datagen.flow_from_directory(
+    'garbage classification', 
+    target_size=(img_height, img_width),
+    batch_size=batch_size,
+    class_mode='categorical',
+    subset='training'
+)
+
+validation_generator = train_datagen.flow_from_directory(
+    'garbage classification',
+    target_size=(img_height, img_width),
+    batch_size=batch_size,
+    class_mode='categorical',
+    subset='validation'
+)
+
+# Print out sample counts for debugging
+print(f"Training samples: {train_generator.samples}")
+print(f"Validation samples: {validation_generator.samples}")
+
+# Calculate steps per epoch
+steps_per_epoch = train_generator.samples // batch_size
+validation_steps = validation_generator.samples // batch_size
+
+# Ensure steps_per_epoch and validation_steps are greater than zero
+if steps_per_epoch == 0 or validation_steps == 0:
+    raise ValueError("Not enough data to create steps per epoch or validation steps.")
+
+# Build the model using transfer learning with MobileNetV2 (Functional API)
+base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(img_height, img_width, 3))
+base_model.trainable = False
+
+# Define the model using Functional API
+inputs = layers.Input(shape=(img_height, img_width, 3))
+x = base_model(inputs)
+x = layers.GlobalAveragePooling2D()(x)
+x = layers.Dense(128, activation='relu')(x)
+x = layers.Dropout(0.5)(x)
+outputs = layers.Dense(num_classes, activation='softmax')(x)
+
+model = models.Model(inputs=inputs, outputs=outputs)
+
+# Compile the model
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Print model summary for debugging
+model.summary()
+
+# Train the model with calculated steps per epoch and increased verbosity
+history = model.fit(
+    train_generator,
+    steps_per_epoch=steps_per_epoch,
+    validation_data=validation_generator,
+    validation_steps=validation_steps,
+    epochs=epochs,
+    verbose=1
+)
+
+# Save the model
+model.save('trash_classifier.keras')
+
+# Plot training history (optional)
+plt.plot(history.history['accuracy'], label='accuracy')
+plt.plot(history.history['val_accuracy'], label='val_accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim([0, 1])
+plt.legend(loc='lower right')
+plt.show()
